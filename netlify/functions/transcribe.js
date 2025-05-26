@@ -15,7 +15,7 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { password, audio, filename } = JSON.parse(event.body);
+    const { password, audio, filename, language } = JSON.parse(event.body);
     
     // Get client IP for rate limiting
     const clientIp = event.headers['x-forwarded-for'] || event.headers['client-ip'] || 'unknown';
@@ -65,6 +65,11 @@ exports.handler = async (event, context) => {
       contentType: 'audio/aac'
     });
     form.append('model', 'whisper-1');
+    
+    // Add language if specified
+    if (language) {
+      form.append('language', language);
+    }
 
     // Call OpenAI API
     const fetch = require('node-fetch');
