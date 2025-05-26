@@ -1,8 +1,12 @@
 {
-  "name": "whisper",
-  "version": "1.0.0",
-  "dependencies": {
-    "node-fetch": "^3.3.7",
-    "form-data": "^4.0.0"
+    "name": "whisper-transcriber",
+    "version": "1.0.0",
+    "description": "Whisper Audio Transcriber with Netlify Functions",
+    "dependencies": {
+      "node-fetch": "^2.6.7",
+      "form-data": "^4.0.0"
+    },
+    "engines": {
+      "node": ">=14.x"
+    }
   }
-}
