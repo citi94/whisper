@@ -22,6 +22,25 @@
             color: #333;
             margin-bottom: 30px;
         }
+        .mode-selector {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+        }
+        .mode-option {
+            margin: 10px 0;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .mode-option input[type="radio"] {
+            margin-right: 10px;
+        }
+        .mode-option label {
+            cursor: pointer;
+            font-weight: 500;
+        }
         .input-group {
             margin-bottom: 20px;
         }
@@ -31,7 +50,7 @@
             font-weight: 600;
             color: #555;
         }
-        input[type="password"], input[type="file"] {
+        input[type="password"], input[type="file"], select {
             width: 100%;
             padding: 10px;
             border: 1px solid #ddd;
@@ -86,11 +105,18 @@
             max-height: 400px;
             overflow-y: auto;
         }
-        .copy-button {
-            background-color: #28a745;
+        .action-buttons {
+            display: flex;
+            gap: 10px;
             margin-top: 10px;
         }
-        .copy-button:hover {
+        .action-buttons button {
+            flex: 1;
+        }
+        .save-button {
+            background-color: #28a745;
+        }
+        .save-button:hover {
             background-color: #218838;
         }
         .info-text {
@@ -98,16 +124,57 @@
             color: #666;
             margin-top: 5px;
         }
+        #sharedKeySection, #ownKeySection {
+            display: none;
+        }
+        .save-checkbox {
+            display: flex;
+            align-items: center;
+            margin-top: 8px;
+            font-size: 14px;
+        }
+        .save-checkbox input {
+            margin-right: 5px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Peter's Whisper Audio Transcriber</h1>
+        <h1>Whisper Audio Transcriber</h1>
         
-        <div class="input-group">
-            <label for="accessPassword">Access Password:</label>
-            <input type="password" id="accessPassword" placeholder="Enter password">
-            <p class="info-text">Contact the site owner for the password</p>
+        <div class="mode-selector">
+            <h3>Choose access method:</h3>
+            <div class="mode-option">
+                <input type="radio" id="useShared" name="mode" value="shared" checked>
+                <label for="useShared">Use Peter's API key (password required)</label>
+            </div>
+            <div class="mode-option">
+                <input type="radio" id="useOwn" name="mode" value="own">
+                <label for="useOwn">Use my own OpenAI API key</label>
+            </div>
+        </div>
+
+        <div id="sharedKeySection">
+            <div class="input-group">
+                <label for="accessPassword">Access Password:</label>
+                <input type="password" id="accessPassword" placeholder="Enter password">
+                <div class="save-checkbox">
+                    <input type="checkbox" id="savePassword" checked>
+                    <label for="savePassword">Remember password</label>
+                </div>
+            </div>
+        </div>
+
+        <div id="ownKeySection">
+            <div class="input-group">
+                <label for="apiKey">OpenAI API Key:</label>
+                <input type="password" id="apiKey" placeholder="sk-...">
+                <div class="save-checkbox">
+                    <input type="checkbox" id="saveApiKey" checked>
+                    <label for="saveApiKey">Remember API key</label>
+                </div>
+                <p class="info-text">Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI</a></p>
+            </div>
         </div>
         
         <div class="input-group">
@@ -118,7 +185,7 @@
         
         <div class="input-group">
             <label for="language">Language (optional):</label>
-            <select id="language" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px;">
+            <select id="language">
                 <option value="">Auto-detect</option>
                 <option value="en">English</option>
                 <option value="es">Spanish</option>
@@ -165,11 +232,91 @@
         <div id="transcriptionContainer" style="display: none;">
             <h3>Transcription:</h3>
             <div id="transcription" class="transcription"></div>
-            <button class="copy-button" onclick="copyTranscription()">Copy to Clipboard</button>
+            <div class="action-buttons">
+                <button class="save-button" onclick="saveTranscription()">Save as File</button>
+                <button onclick="copyTranscription()">Copy to Clipboard</button>
+            </div>
         </div>
     </div>
 
     <script>
+        // Initialize on page load
+        window.addEventListener('load', function() {
+            loadSavedPreferences();
+            setupModeHandlers();
+        });
+
+        function loadSavedPreferences() {
+            // Load saved mode
+            const savedMode = localStorage.getItem('transcriber_mode') || 'shared';
+            document.querySelector(`input[name="mode"][value="${savedMode}"]`).checked = true;
+            updateModeDisplay(savedMode);
+
+            // Load saved password if checkbox was checked
+            const savePassword = localStorage.getItem('save_password') === 'true';
+            document.getElementById('savePassword').checked = savePassword;
+            if (savePassword) {
+                const savedPassword = localStorage.getItem('access_password') || '';
+                document.getElementById('accessPassword').value = savedPassword;
+            }
+
+            // Load saved API key if checkbox was checked
+            const saveApiKey = localStorage.getItem('save_api_key') === 'true';
+            document.getElementById('saveApiKey').checked = saveApiKey;
+            if (saveApiKey) {
+                const savedApiKey = localStorage.getItem('openai_api_key') || '';
+                document.getElementById('apiKey').value = savedApiKey;
+            }
+        }
+
+        function setupModeHandlers() {
+            // Handle mode changes
+            document.querySelectorAll('input[name="mode"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    updateModeDisplay(this.value);
+                    localStorage.setItem('transcriber_mode', this.value);
+                });
+            });
+
+            // Handle save checkboxes
+            document.getElementById('savePassword').addEventListener('change', function() {
+                localStorage.setItem('save_password', this.checked);
+                if (!this.checked) {
+                    localStorage.removeItem('access_password');
+                }
+            });
+
+            document.getElementById('saveApiKey').addEventListener('change', function() {
+                localStorage.setItem('save_api_key', this.checked);
+                if (!this.checked) {
+                    localStorage.removeItem('openai_api_key');
+                }
+            });
+
+            // Save credentials when typed
+            document.getElementById('accessPassword').addEventListener('input', function() {
+                if (document.getElementById('savePassword').checked) {
+                    localStorage.setItem('access_password', this.value);
+                }
+            });
+
+            document.getElementById('apiKey').addEventListener('input', function() {
+                if (document.getElementById('saveApiKey').checked) {
+                    localStorage.setItem('openai_api_key', this.value);
+                }
+            });
+        }
+
+        function updateModeDisplay(mode) {
+            if (mode === 'shared') {
+                document.getElementById('sharedKeySection').style.display = 'block';
+                document.getElementById('ownKeySection').style.display = 'none';
+            } else {
+                document.getElementById('sharedKeySection').style.display = 'none';
+                document.getElementById('ownKeySection').style.display = 'block';
+            }
+        }
+
         function showStatus(message, type) {
             const status = document.getElementById('status');
             status.textContent = message;
@@ -178,16 +325,11 @@
         }
 
         async function transcribeAudio() {
-            const password = document.getElementById('accessPassword').value;
+            const mode = document.querySelector('input[name="mode"]:checked').value;
             const fileInput = document.getElementById('audioFile');
             const file = fileInput.files[0];
             const language = document.getElementById('language').value;
             const button = document.getElementById('transcribeBtn');
-
-            if (!password) {
-                showStatus('Please enter the access password', 'error');
-                return;
-            }
 
             if (!file) {
                 showStatus('Please select an audio file', 'error');
@@ -207,34 +349,68 @@
             showStatus('Uploading and processing audio...', 'info');
 
             try {
-                // Convert file to base64
-                const base64 = await fileToBase64(file);
+                let response;
                 
-                // Call our Netlify function
-                const response = await fetch('/.netlify/functions/transcribe', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        password: password,
-                        audio: base64,
-                        filename: file.name,
-                        language: language
-                    })
-                });
+                if (mode === 'shared') {
+                    // Use Peter's API key via Netlify function
+                    const password = document.getElementById('accessPassword').value;
+                    if (!password) {
+                        showStatus('Please enter the access password', 'error');
+                        return;
+                    }
 
-                const result = await response.json();
+                    const base64 = await fileToBase64(file);
+                    
+                    response = await fetch('/.netlify/functions/transcribe', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            password: password,
+                            audio: base64,
+                            filename: file.name,
+                            language: language
+                        })
+                    });
 
-                if (!response.ok) {
-                    throw new Error(result.error || 'Transcription failed');
+                    const result = await response.json();
+                    if (!response.ok) {
+                        throw new Error(result.error || 'Transcription failed');
+                    }
+                    showTranscription(result.text);
+                    
+                } else {
+                    // Use own API key directly
+                    const apiKey = document.getElementById('apiKey').value;
+                    if (!apiKey) {
+                        showStatus('Please enter your OpenAI API key', 'error');
+                        return;
+                    }
+
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('model', 'whisper-1');
+                    if (language) {
+                        formData.append('language', language);
+                    }
+
+                    response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${apiKey}`
+                        },
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.error?.message || 'Transcription failed');
+                    }
+
+                    const result = await response.json();
+                    showTranscription(result.text);
                 }
-                
-                // Show transcription
-                document.getElementById('transcription').textContent = result.text;
-                document.getElementById('transcription').style.display = 'block';
-                document.getElementById('transcriptionContainer').style.display = 'block';
-                showStatus('Transcription completed successfully!', 'success');
 
             } catch (error) {
                 showStatus(`Error: ${error.message}`, 'error');
@@ -245,6 +421,17 @@
             }
         }
 
+        function showTranscription(text) {
+            document.getElementById('transcription').textContent = text;
+            document.getElementById('transcription').style.display = 'block';
+            document.getElementById('transcriptionContainer').style.display = 'block';
+            showStatus('Transcription completed successfully!', 'success');
+            
+            // Store for saving
+            window.lastTranscription = text;
+            window.lastFilename = document.getElementById('audioFile').files[0].name;
+        }
+
         function fileToBase64(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -252,6 +439,29 @@
                 reader.onload = () => resolve(reader.result.split(',')[1]);
                 reader.onerror = error => reject(error);
             });
+        }
+
+        function saveTranscription() {
+            if (!window.lastTranscription) {
+                showStatus('No transcription to save', 'error');
+                return;
+            }
+
+            const timestamp = new Date().toISOString().replace(/:/g, '-').slice(0, -5);
+            const originalName = window.lastFilename.replace(/\.[^/.]+$/, '');
+            const filename = `${originalName}_transcription_${timestamp}.txt`;
+            
+            const blob = new Blob([window.lastTranscription], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showStatus('Transcription saved!', 'success');
         }
 
         function copyTranscription() {
